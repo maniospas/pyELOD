@@ -1,5 +1,6 @@
 import networkx as nx
-import GW
+import pcst_fast
+import numpy as np
 
 
 def show(G, subgraph=None):
@@ -25,6 +26,7 @@ def MEPT(G, r, a):
     for u, v in best_predecessor.items():
         T.add_edge(v, u)
     return T
+
 
 def trace(G, r, a):
     T = MEPT(G, r, a)
@@ -53,35 +55,28 @@ def trace(G, r, a):
                 pending.append(u)
     return tr
 
+
 def least_trace(G, r):
     return trace(G, r, 1.E-12)
 
 
-def core_trace(G, r):
+def core(G, r, trace_method=trace):
     eps = 1.E-6
     tr_cond = eps
     tr = None
+    found_a = None
     while True:
+        prev_cond = tr_cond
         a = tr_cond + 1
-        next_tr = trace(G, r, a)
+        next_tr = trace_method(G, r, a)
         if len(next_tr) == 0:
             break
         tr = next_tr
         tr_cond = conductance(G, tr)
-    return tr
-
-
-def GW_trace(G, r):
-    tr = None
-    best_value = 0
-    for _ in range(10):
-        next_tr = GW_cut(G, r)
-        tr_cond = conductance(G, next_tr)
-        if tr_cond > best_value:
-            best_value = tr_cond
-            tr = next_tr
-        print(tr_cond, ' (max', best_value,')')
-    return tr
+        if prev_cond == tr_cond:
+            break
+        found_a = a
+    return tr, found_a
 
 
 def BFS(G, r):
@@ -89,6 +84,7 @@ def BFS(G, r):
     for v,u in nx.bfs_edges(G,r):
         T.add_edge(v, u)
     return T
+
 
 def ELOD(G, subgraph, a):
     internal = 0
@@ -98,8 +94,29 @@ def ELOD(G, subgraph, a):
         outgoing_total += G.out_degree[v]
     return outgoing_total-a*internal
 
-def GW_cut(G, r):
-    return nx.algorithms.traversal.breadth_first_search.bfs_tree(nx.subgraph(G, GW.GW_cut(G, r)), r)
+
+def GW_cut(G, r, a):
+    node_map = {}
+    node_map_inv = {}
+    for v in G:
+        node_map_inv[len(node_map)] = v
+        node_map[v] = len(node_map)
+    max_degree = max(G.out_degree(v) for v in G)
+    edges = list()
+    for i,j in G.edges():
+        edges.append([node_map[i], node_map[j]])
+    vertices_selected, edges_selected = pcst_fast.pcst_fast(np.asarray(edges, dtype=np.int64),
+                                   np.asarray([G.out_degree(v) for v in G], np.float64),
+                                   np.asarray([a for _ in range(len(edges))], np.float64),
+                                   node_map[r], 1, 'none', 0)
+    print(edges_selected)
+    T = nx.DiGraph()
+    for edge in edges_selected:
+        T.add_edge(node_map_inv[edges[edge][0]], node_map_inv[edges[edge][1]])
+    return T#nx.algorithms.traversal.bfs_tree(T, r)
+
+
+
 
 def conductance(G, subgraph):
     internal = 0
@@ -116,17 +133,19 @@ def conductance(G, subgraph):
 
 G = nx.les_miserables_graph().to_directed()
 r = list(G.nodes)[20]
-print(r)
-T = core_trace(G, r)
-print(ELOD(G,T,2))
-print(ELOD(G,BFS(G, r),2))
-print('Least Trace Cut Size', ELOD(G, least_trace(G, r), 0))
-print('GW Cut Size', ELOD(G, GW_cut(G, r), 0))
-print('MEPT Conductance', conductance(G,MEPT(G, r,2)))
-print('Trace Conductance', conductance(G,T))
-W = GW_cut(G, r)
-print('GW Conductance', conductance(G,W))
-show(W, None)
+found_a = 3
+#T, found_a = core(G, r, trace)
+T = trace(G, r, found_a)
+W = GW_cut(G, r, found_a)
+
+print('a = ', found_a)
+print('Trace ELOD', ELOD(G, T, found_a))
+print('GW ELOD', ELOD(G, W, found_a))
+
+print('MEPT Conductance', conductance(G, MEPT(G, r, 2)))
+print('Trace Conductance', conductance(G, T))
+print('GW Conductance', conductance(G, W))
+
 
 
 
