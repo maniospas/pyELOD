@@ -7,11 +7,10 @@ def MEPT(G, r, a):
     traceELOD = {v: float('-inf') for v in G}
     traceELOD[r] = G.degree[r]
     best_predecessor = {}
-    for _,v in nx.bfs_edges(G,r):
-        for u in G.predecessors(v):
-            if v != u and traceELOD[v] < G.out_degree[v]+traceELOD[u]-a:
-                traceELOD[v] = G.out_degree[v]+traceELOD[u]-a
-                best_predecessor[v] = u
+    for u, v in traversal(G, r):
+        if traceELOD[v] < G.out_degree[v]+traceELOD[u]-a:
+            traceELOD[v] = G.out_degree[v]+traceELOD[u]-a
+            best_predecessor[v] = u
     T = nx.DiGraph()
     for u, v in best_predecessor.items():
         T.add_edge(v, u)
@@ -46,7 +45,7 @@ def trace(G, r, a):
     return tr
 
 
-def core(G, r, trace_method=trace, eps=1.E-6):
+def core(G, r, trace_method=trace, eps=1.E-12):
     tr_cond = eps
     tr = None
     found_a = None
@@ -64,11 +63,28 @@ def core(G, r, trace_method=trace, eps=1.E-6):
     return tr, found_a
 
 
-def BFS(G, r):
+def traversal(G, r):
+    pending = [r]
     T = nx.DiGraph()
-    for v,u in nx.bfs_edges(G,r):
-        T.add_edge(v, u)
-    return T
+    T.add_node(r)
+    while len(pending) != 0:
+        u = pending.pop(0)
+        for v in G.successors(u):
+            if v not in T:
+                pending.append(v)
+                T.add_edge(u, v)
+    preds = {v: T.in_degree[v] for v in T}
+    pending = [r]
+    edges = list()
+    while len(pending) != 0:
+        u = pending.pop(0)
+        for v in T.successors(u):
+            preds[v] -= 1
+            edges.append((u, v))
+            if preds[v] == 0:
+                pending.append(v)
+    return edges
+
 
 
 def ELOD(G, subgraph, a):
@@ -98,7 +114,7 @@ def pcst(G, r, a):
     T = nx.DiGraph()
     for edge in edges_selected:
         T.add_edge(node_map_inv[edges[edge][0]], node_map_inv[edges[edge][1]])
-    return T#nx.algorithms.traversal.bfs_tree(T, r)
+    return T
 
 
 def conductance(G, subgraph):
