@@ -8,7 +8,7 @@ def MEPT(G, r, a):
     traceELOD[r] = G.degree[r]
     best_predecessor = {}
     for u, v in traversal(G, r):
-        if traceELOD[v] < G.out_degree[v]+traceELOD[u]-a:
+        if traceELOD[v] <= G.out_degree[v]+traceELOD[u]-a:
             traceELOD[v] = G.out_degree[v]+traceELOD[u]-a
             best_predecessor[v] = u
     T = nx.DiGraph()
@@ -35,6 +35,7 @@ def trace(G, r, a):
         if needs_calc[pred] == 0:
             pending.append(pred)
     tr = nx.DiGraph()
+    tr.add_node(r)
     pending = [r]
     while len(pending) != 0:
         v = pending.pop(0)
@@ -45,20 +46,19 @@ def trace(G, r, a):
     return tr
 
 
-def core(G, r, trace_method=trace, eps=1.E-12):
+def core(G, r, trace_method=trace, eps=1.E-6):
     tr_cond = eps
     tr = None
     found_a = None
     while True:
         prev_cond = tr_cond
-        a = tr_cond + 1
+        a = np.round(tr_cond) + 1
         next_tr = trace_method(G, r, a)
-        if len(next_tr) == 0:
+        tr_cond = conductance(G, next_tr)
+        print(a, tr_cond)
+        if prev_cond >= tr_cond:
             break
         tr = next_tr
-        tr_cond = conductance(G, tr)
-        if prev_cond == tr_cond:
-            break
         found_a = a
     return tr, found_a
 
@@ -67,12 +67,23 @@ def traversal(G, r):
     pending = [r]
     T = nx.DiGraph()
     T.add_node(r)
+    max_dist = len(G)+1
+    dist = {v: max_dist for v in G}
+    dist[r] = 0
     while len(pending) != 0:
         u = pending.pop(0)
         for v in G.successors(u):
             if v not in T:
                 pending.append(v)
                 T.add_edge(u, v)
+                dist[v] = dist[u] + 1
+            elif v!=r:
+                c = list(T.predecessors(v))[0]
+                if dist[c] > dist[v]:
+                    T.remove_edge(c, v)
+                    T.add_edge(u, v)
+                    dist[v] = dist[u] + 1
+
     preds = {v: T.in_degree[v] for v in T}
     pending = [r]
     edges = list()
@@ -111,9 +122,14 @@ def pcst(G, r, a):
                                    np.asarray([G.out_degree(v) for v in G], np.float64),
                                    np.asarray([a for _ in range(len(edges))], np.float64),
                                    node_map[r], 1, 'strong', 0)
-    T = nx.DiGraph()
+    T = nx.Graph()
     for edge in edges_selected:
         T.add_edge(node_map_inv[edges[edge][0]], node_map_inv[edges[edge][1]])
+    if len(T) == 0:
+        T = nx.DiGraph()
+        T.add_node(r)
+        return T
+    T = nx.traversal.bfs_tree(T, r)
     return T
 
 

@@ -22,6 +22,8 @@ core_trace_a = list()
 core_pcst_a = list()
 core_trace_time = list()
 core_pcst_time = list()
+trace_conductance = list()
+pcst_conductance = list()
 trace_time = list()
 pcst_time = list()
 trace_ELOD = list()
@@ -32,7 +34,7 @@ trace10_ELOD = list()
 pcst10_ELOD = list()
 
 
-for i in range(100):
+for i in [0]:
     G = nx.erdos_renyi_graph(100, 0.1, seed=i).to_directed()
     G.remove_nodes_from(list(nx.isolates(G)))
     G.remove_edges_from(nx.selfloop_edges(G))
@@ -59,6 +61,9 @@ for i in range(100):
     tic = time.time()
     W = ELOD.pcst(G, r, found_a)
     pcst_time.append(time.time()-tic)
+
+    trace_conductance.append(ELOD.conductance(G, T))
+    pcst_conductance.append(ELOD.conductance(G, W))
 
     trace_ELOD.append(ELOD.ELOD(G, T, found_a))
     pcst_ELOD.append(ELOD.ELOD(G, W, found_a))
@@ -92,6 +97,11 @@ print('Trace time')
 print(trace_time)
 print('PCST time')
 print(pcst_time)
+
+print('trace conductance')
+print(trace_conductance)
+print('PCST conductance')
+print(pcst_conductance)
 
 print('Trace ELOD')
 print(trace_ELOD)
