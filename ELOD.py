@@ -1,19 +1,130 @@
 import networkx as nx
 import pcst_fast
 import numpy as np
+import heapq as heapq
+
+class Heap:
+    def __init__(self):
+        self.pq = []
+        self.entry_finder = {}
+        self._counter = 0
+
+    def __contains__(self, item):
+        return item in self.entry_finder
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while self.pq:
+            priority, count, item = heapq.heappop(self.pq)
+            if item is not None:
+                del self.entry_finder[item]
+                return item
+        raise StopIteration()
+
+    def __len__(self):
+        return len(self.pq)
+
+    def remove(self, item):
+        entry = self.entry_finder[item]
+        entry[-1] = None
+
+    def add(self, item, priority=0):
+        if item in self:
+            self.remove(item)
+        entry = [priority, self._counter, item]
+        heapq.heappush(self.pq, entry)
+        self.entry_finder[item] = entry
+        self._counter += 1
+
+
+
+def traversal(G, r):
+    pending = [r]
+    T = nx.DiGraph()
+    T.add_node(r)
+    max_dist = len(G)+1
+    dist = {v: max_dist for v in G}
+    dist[r] = 0
+    best_predecessor = {}
+    while len(pending) != 0:
+        u = pending.pop(0)
+        for v in G.successors(u):
+            if v not in T:
+                pending.append(v)
+                T.add_edge(u, v)
+                dist[v] = dist[u] + 1
+            else:
+                preds = list(G.predecessors(v))
+                if len(preds) == 0:
+                    continue
+                if len(preds) > 1:
+                    raise Exception("MEPT should be a tree")
+                c = preds[0]
+                if dist[c] > dist[u]:
+                    T.remove_edge(c, v)
+                    T.add_edge(u, v)
+                    dist[v] = dist[u] + 1
+
+    preds = {v: T.in_degree[v] for v in T}
+    pending = [r]
+    edges = list()
+    while len(pending) != 0:
+        u = pending.pop(0)
+        for v in T.successors(u):
+            preds[v] -= 1
+            edges.append((u, v))
+            if preds[v] == 0:
+                pending.append(v)
+    return edges
 
 
 def MEPT(G, r, a):
-    traceELOD = {v: float('-inf') for v in G}
-    traceELOD[r] = G.degree[r]
+    subtraceELOD = {v: float('-inf') for v in G}
+    subtraceELOD[r] = G.out_degree[r]
     best_predecessor = {}
-    for u, v in traversal(G, r):
-        if traceELOD[v] <= G.out_degree[v]+traceELOD[u]-a:
-            traceELOD[v] = G.out_degree[v]+traceELOD[u]-a
-            best_predecessor[v] = u
+    """
+    heap = Heap()
+    heap.add(r, subtraceELOD[r])
+    visited = {v: False for v in G}
+    for u in heap:
+        visited[u] = True
+        for v in G.successors(u):
+            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
+                subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
+                best_predecessor[v] = u
+                if not visited[v]:
+                    heap.add(v, subtraceELOD[v])
+    """
+    pending = [r]
+    distance = {v: len(G) for v in G}
+    visited = {v: False for v in G}
+    while pending:
+        u = pending.pop(0)
+        visited[u] = True
+        for v in G.successors(u):
+            if not visited[v] and subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
+                subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
+                best_predecessor[v] = u
+                pending.append(v)
+
     T = nx.DiGraph()
+    for v, u in best_predecessor.items():
+        T.add_edge(u, v)
+    """
+    print('ELOD', ELOD(G, T, a))
+    subtraceELOD = {v: float('-inf') for v in G}
+    subtraceELOD[r] = G.out_degree[r]
+    T2 = nx.DiGraph()
+    for u, v in nx.traversal.bfs_edges(G, r):
+        if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
+            subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
+            best_predecessor[v] = u
     for u, v in best_predecessor.items():
-        T.add_edge(v, u)
+        T2.add_edge(v, u)
+    print('ELOD', ELOD(G, T2, a))
+    """
     return T
 
 
@@ -25,7 +136,7 @@ def trace(G, r, a):
     while len(pending) != 0:
         v = pending.pop(0)
         preds = list(T.predecessors(v))
-        if len(preds)==0:
+        if len(preds) == 0:
             continue
         if len(preds) > 1:
             raise Exception("MEPT should be a tree")
@@ -55,7 +166,7 @@ def core(G, r, trace_method=trace, eps=1.E-6):
         a = np.round(tr_cond) + 1
         next_tr = trace_method(G, r, a)
         tr_cond = conductance(G, next_tr)
-        print(a, tr_cond)
+        # print(a, tr_cond)
         if prev_cond >= tr_cond:
             break
         tr = next_tr
@@ -63,38 +174,6 @@ def core(G, r, trace_method=trace, eps=1.E-6):
     return tr, found_a
 
 
-def traversal(G, r):
-    pending = [r]
-    T = nx.DiGraph()
-    T.add_node(r)
-    max_dist = len(G)+1
-    dist = {v: max_dist for v in G}
-    dist[r] = 0
-    while len(pending) != 0:
-        u = pending.pop(0)
-        for v in G.successors(u):
-            if v not in T:
-                pending.append(v)
-                T.add_edge(u, v)
-                dist[v] = dist[u] + 1
-            elif v!=r:
-                c = list(T.predecessors(v))[0]
-                if dist[c] > dist[v]:
-                    T.remove_edge(c, v)
-                    T.add_edge(u, v)
-                    dist[v] = dist[u] + 1
-
-    preds = {v: T.in_degree[v] for v in T}
-    pending = [r]
-    edges = list()
-    while len(pending) != 0:
-        u = pending.pop(0)
-        for v in T.successors(u):
-            preds[v] -= 1
-            edges.append((u, v))
-            if preds[v] == 0:
-                pending.append(v)
-    return edges
 
 
 
@@ -142,3 +221,11 @@ def conductance(G, subgraph):
     if internal == 0:
         return 0
     return outgoing_total/internal-1
+
+def count(G, subgraph):
+    internal = 0
+    outgoing_total = 0
+    for v in subgraph:
+        internal += subgraph.out_degree[v]
+        outgoing_total += G.out_degree[v]
+    return internal, outgoing_total
