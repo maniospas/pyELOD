@@ -98,15 +98,16 @@ def MEPT(G, r, a):
                     heap.add(v, subtraceELOD[v])
     """
     pending = [r]
-    distance = {v: len(G) for v in G}
-    visited = {v: False for v in G}
+    N = len(G)+1
+    distance = {v: N for v in G}
+    distance[r] = 0
     while pending:
         u = pending.pop(0)
-        visited[u] = True
         for v in G.successors(u):
-            if not visited[v] and subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
+            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a and distance[u]<distance[v]:
                 subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
                 best_predecessor[v] = u
+                distance[v] = distance[u] + 1
                 pending.append(v)
 
     T = nx.DiGraph()
