@@ -82,7 +82,7 @@ def traversal(G, r):
 
 def MEPT(G, r, a):
     prev_a = a
-    a = max(deg for v, deg in G.out_degree())
+    a = max(deg for _, deg in G.out_degree())
     subtraceELOD = {v: float('-inf') for v in G}
     subtraceELOD[r] = G.out_degree[r]
     heap = Heap()
@@ -93,10 +93,10 @@ def MEPT(G, r, a):
     for u in heap:
         visited[u] = True
         for v in G.successors(u):
-            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a and not visited[v]:
-                subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
-                best_predecessor[v].append(u)
+            if not visited[v]:
+                subtraceELOD[v] = max(subtraceELOD[v], G.out_degree[v]+subtraceELOD[u]-a)
                 heap.add(v, -subtraceELOD[v])
+                best_predecessor[v].append(u)
 
     T = nx.DiGraph()
     for v, u_list in best_predecessor.items():
@@ -171,7 +171,7 @@ def trace(G, r, a):
 
 
 def core(G, r, trace_method=trace, eps=1.E-6):
-    tr_cond = eps
+    tr_cond = -1
     tr = None
     found_a = None
     while True:
