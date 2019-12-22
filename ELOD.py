@@ -81,38 +81,50 @@ def traversal(G, r):
 
 
 def MEPT(G, r, a):
+    prev_a = a
+    a = max(deg for v, deg in G.out_degree())
     subtraceELOD = {v: float('-inf') for v in G}
     subtraceELOD[r] = G.out_degree[r]
-    best_predecessor = {}
-    """
     heap = Heap()
-    heap.add(r, subtraceELOD[r])
     visited = {v: False for v in G}
+    subtraceELOD[r] = G.out_degree[r]
+    heap.add(r, subtraceELOD[r])
+    best_predecessor = {v: list() for v in G}
     for u in heap:
         visited[u] = True
         for v in G.successors(u):
-            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
+            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a and not visited[v]:
                 subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
-                best_predecessor[v] = u
-                if not visited[v]:
-                    heap.add(v, subtraceELOD[v])
-    """
+                best_predecessor[v].append(u)
+                heap.add(v, -subtraceELOD[v])
+
+    T = nx.DiGraph()
+    for v, u_list in best_predecessor.items():
+        for u in u_list:
+            T.add_edge(u, v)
+
+    a = prev_a
+    subtraceELOD = {v: float('-inf') for v in G}
+    subtraceELOD[r] = G.out_degree[r]
+    best_predecessor = {}
     pending = [r]
-    N = len(G)+1
-    distance = {v: N for v in G}
-    distance[r] = 0
+    needs_calc = {v: T.in_degree[v] for v in T}
+    needs_calc[r] = 0
     while pending:
         u = pending.pop(0)
-        for v in G.successors(u):
-            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a and distance[u]<distance[v]:
-                subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
+        for v in T.successors(u):
+            if subtraceELOD[v] < G.out_degree[v]+subtraceELOD[u]-a:
                 best_predecessor[v] = u
-                distance[v] = distance[u] + 1
+                subtraceELOD[v] = G.out_degree[v]+subtraceELOD[u]-a
+            needs_calc[v] -= 1
+            if needs_calc[v] == 0:
                 pending.append(v)
+
 
     T = nx.DiGraph()
     for v, u in best_predecessor.items():
         T.add_edge(u, v)
+
     """
     print('ELOD', ELOD(G, T, a))
     subtraceELOD = {v: float('-inf') for v in G}
@@ -150,11 +162,11 @@ def trace(G, r, a):
     tr.add_node(r)
     pending = [r]
     while len(pending) != 0:
-        v = pending.pop(0)
-        for u in T.successors(v):
-            if traceELOD[u] >= a:
-                tr.add_edge(v, u)
-                pending.append(u)
+        u = pending.pop(0)
+        for v in T.successors(u):
+            if traceELOD[v] >= a:
+                tr.add_edge(u, v)
+                pending.append(v)
     return tr
 
 
@@ -164,7 +176,7 @@ def core(G, r, trace_method=trace, eps=1.E-6):
     found_a = None
     while True:
         prev_cond = tr_cond
-        a = np.round(tr_cond) + 1
+        a = tr_cond+1+eps
         next_tr = trace_method(G, r, a)
         tr_cond = conductance(G, next_tr)
         # print(a, tr_cond)
