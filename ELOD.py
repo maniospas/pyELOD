@@ -180,7 +180,7 @@ def core(G, r, trace_method=trace, eps=1.E-6):
         next_tr = trace_method(G, r, a)
         tr_cond = conductance(G, next_tr)
         # print(a, tr_cond)
-        if prev_cond >= tr_cond:
+        if len(next_tr)<=1:
             break
         tr = next_tr
         found_a = a
