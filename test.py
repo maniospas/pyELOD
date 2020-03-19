@@ -36,7 +36,7 @@ pcst10_ELOD = list()
 
 for i in range(100):
     #G = nx.erdos_renyi_graph(100, 0.2, seed=i).to_directed()
-    G = nx.generators.barabasi_albert_graph(500, 3, seed=i).to_directed()
+    G = nx.generators.barabasi_albert_graph(1000, 5, seed=i).to_directed()
     G.remove_nodes_from(list(nx.isolates(G)))
     G.remove_edges_from(nx.selfloop_edges(G))
     r = list(G.nodes)[0]
