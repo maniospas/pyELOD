@@ -34,10 +34,10 @@ trace10_ELOD = list()
 pcst10_ELOD = list()
 
 
-nodes = 100
-param = 0.01
+nodes = 2000
+param = 0.03
 
-print("name= '",'BA('+str(nodes)+','+str(param)+")'")
+print("name =","'ER("+str(nodes)+','+str(param)+")'")
 for i in range(100):
     G = nx.erdos_renyi_graph(nodes, param, seed=i).to_directed()
     #G = nx.generators.barabasi_albert_graph(nodes, param, seed=i).to_directed()

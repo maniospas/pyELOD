@@ -144,11 +144,11 @@ def MEPT(G, r, a):
 def trace(G, r, a):
     T = MEPT(G, r, a)
     traceELOD = {v: G.out_degree[v] for v in G}
-    needs_calc = {v: T.out_degree[v] for v in G}
+    needs_calc = {v: T.out_degree[v] if v in T else 0 for v in G}
     pending = list([v for v in G if needs_calc[v] == 0])
     while len(pending) != 0:
         v = pending.pop(0)
-        preds = list(T.predecessors(v))
+        preds = list(T.predecessors(v)) if v in T else list()
         if len(preds) == 0:
             continue
         if len(preds) > 1:
