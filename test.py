@@ -34,9 +34,13 @@ trace10_ELOD = list()
 pcst10_ELOD = list()
 
 
+nodes = 100
+param = 0.01
+
+print("name= '",'BA('+str(nodes)+','+str(param)+")'")
 for i in range(100):
-    #G = nx.erdos_renyi_graph(100, 0.2, seed=i).to_directed()
-    G = nx.generators.barabasi_albert_graph(1000, 5, seed=i).to_directed()
+    G = nx.erdos_renyi_graph(nodes, param, seed=i).to_directed()
+    #G = nx.generators.barabasi_albert_graph(nodes, param, seed=i).to_directed()
     G.remove_nodes_from(list(nx.isolates(G)))
     G.remove_edges_from(nx.selfloop_edges(G))
     r = list(G.nodes)[0]
@@ -81,8 +85,14 @@ for i in range(100):
     #print(set(list(T))-set(list(W)))
     #print(set(list(W))-set(list(T)))
 
-    print(i)
 
+
+print('ELODFast = ', core_trace_conductance, ';')
+print('PCSTFast = ', core_pcst_conductance, ';')
+print("scatter(PCSTFast, ELODFast, '.')")
+
+
+"""
 print('Core trace conductance')
 print(core_trace_conductance)
 print('Core PCST conductance')
@@ -122,7 +132,9 @@ print('10Trace ELOD')
 print(trace10_ELOD)
 print('10PCST ELOD')
 print(pcst10_ELOD)
+"""
 
+"""
 for i in range(len(trace10_ELOD)):
     if trace10_ELOD[i]<pcst10_ELOD[i]:
         print(i, trace10_ELOD[i], pcst10_ELOD[i])
@@ -132,6 +144,7 @@ for i in range(len(trace2_ELOD)):
 for i in range(len(trace_ELOD)):
     if trace_ELOD[i]<pcst_ELOD[i]:
         print(2, i, trace_ELOD[i], pcst_ELOD[i])
+"""
 
 
 
