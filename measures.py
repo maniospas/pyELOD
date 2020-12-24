@@ -1,4 +1,6 @@
 def conductance(G, subgraph):
+    if subgraph is None:
+        return 0
     internal = 0
     outgoing_total = 0
     for v in subgraph:

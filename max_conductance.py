@@ -2,9 +2,8 @@ import networkx as nx
 import pcst_fast
 import numpy as np
 from heap import Heap
-from measures import conductance
+from measures import conductance, ELOD
 from collections import deque as Que
-
 
 def _backward(T, a, D0):
     D = {v: D0.get(v, 0) for v in T}
@@ -58,7 +57,12 @@ def _remove_cycles(G, r):
     return T
 
 
-def _traverse_order(G, r, D0):
+def _add(dict1, dict2):
+    for u, value in dict2.items():
+        dict1[u] = dict1.get(u, 0) + dict2[u]
+
+
+def _traverse_order(G, r):
     in_degree = {v: G.in_degree[v] for v in G}
     should_visit = {v: in_degree[v] for v in G}
     pending = Que([r])
@@ -84,47 +88,140 @@ def _traverse_order(G, r, D0):
     return visit_order
 
 
-class ELODFast:
-    def __call__(self, G, r, a):
-        D0 = {v: G.out_degree[v] for v in G}
-        G = _remove_cycles(G, r)
-        self.D0 = D0
-        self.G = G
-        self.a = a
-        return self._find_trace(r)
-
-    def _find_trace(self, r):
-        T = nx.DiGraph()
-        pending = [r]
-        for u in pending:
-            for v in self.G.successors(u):
-                T.add_edge(u, v)
-                pending.append(v)
-
-
-def _trace_tree(T, r, a, D0):
-    D = _backward(T, a, D0)
-    return _forward(T, r, a, D)
-
-
 class ELODTree:
     def __call__(self, G, r, a):
         D0 = {v: G.out_degree(v) for v in G}
-        return _trace_tree(G, r, a, D0)
+        D = _backward(G, a, D0)
+        return _forward(G, r, a, D)
+
+
+class ELODFast:
+
+    """def _forward_dag(self, G, r, a, D):
+        trace = nx.DiGraph()
+        trace.add_node(r)
+        pending = Heap()
+        pending.add(r, 0)
+        visited_from = {v: None for v in D}
+        for u in pending:
+            for v in G.successors(u):
+                Dv = D[u][v]
+                if Dv >= a and visited_from[v] is None:
+                    pending.add(v, -Dv)
+                    trace.add_edge(u, v)
+                    visited_from[v] = u
+        return trace
+    """
+
+    def _forward_dag(self, G, r, a, D):
+        trace = nx.DiGraph()
+        trace.add_node(r)
+        pending = Heap()
+        pending.add(r, 0)
+        visited_from = {v: None for v in D}
+        for u in pending:
+            for v in G.successors(u):
+                Dv = D[v]#Duv[u].get(v,0)
+                if Dv >= a and visited_from[v] is None:
+                    pending.add(v, Dv)
+                    trace.add_edge(u, v)
+                    visited_from[v] = u
+        return trace
+
+    def _backward_dag(self, G, r, a, D0, from_id=0, to_id=None, strong=False):
+        accounted_successors = {v: set() for v in G}
+        if to_id is None:
+            to_id = len(self.order)
+        order = self.order[from_id:to_id]
+        order.reverse()
+        D = {v: D0.get(v, 0) for v in G}
+        Duv = {v: dict() for v in G}
+        for p in order:
+            if D[p] == 0:
+                continue
+            for v in G.successors(p):#sorted(G.successors(p), key=lambda v: -D[v]):
+                Dv = D[v]
+                if strong:
+                    common_accounted = set(s for s in accounted_successors[p] if s in accounted_successors[v])
+                    for s in sorted(common_accounted):
+                        if s not in common_accounted:
+                            continue
+                        Dv -= max(D[s] - a, 0)
+                        common_accounted -= accounted_successors[s]
+
+                # check if the node should be added
+                if Dv >= a:
+                    Duv[p][v] = Dv
+                    if strong:
+                        for s in accounted_successors[v]:
+                            accounted_successors[p].add(s)
+                        if G.in_degree[v] > 1:
+                            accounted_successors[p].add(v)
+                    D[p] += Dv - a
+        return D
+
+    def __call__(self, G, r, a):
+        strong = True
+        D0 = {v: G.out_degree[v] for v in G}
+        G = _remove_cycles(G, r)
+
+        self.order = _traverse_order(G, r)
+        self.node_id = {v: i for i, v in enumerate(self.order)}
+
+        D = self._backward_dag(G, r, a, D0, strong)
+        trace = self._forward_dag(G, r, a, D)
+        if strong:
+            D = _backward(trace, a, D0)
+            trace = _forward(trace, r, a, D)
+            return trace
+        if len(trace)==1:
+            T = nx.DiGraph()
+            T.add_node(r)
+            return T
+        return PCSTFast()(trace, r, a, D0)
+
+
+class MinCut:
+    def __call__(self, G, r):
+        from pygrank.algorithms.pagerank import PageRank
+        G = G.to_directed()
+        ranks = PageRank().rank(G, {r: 1})
+        ranks = {v: ranks[v]/G.degree(v) for v in G}
+        max_grap = 0
+        threshold = 0
+        prev_rank = None
+        for v, rank in sorted(ranks.items(), key=lambda item: item[1], reverse=True):
+            if prev_rank is not None:
+                gap = (prev_rank-rank)
+                print(gap)
+                if gap > max_grap:
+                    max_grap = gap
+                    threshold = rank
+            prev_rank = rank
+        T = nx.DiGraph()
+        T.add_node(r)
+        for u, v in G.edges():
+            if ranks[u] <= threshold and ranks[v] <= threshold:
+                T.add_edge(u, v)
+        return nx.ego_graph(T, r, radius=1000000)
+
+
 
 class PCSTFast:
-    def __call__(self, G, r, a):
+    def __call__(self, G, r, a, D=None):
         node_map = {}
         node_map_inv = {}
         for v in G:
             node_map_inv[len(node_map)] = v
             node_map[v] = len(node_map)
-        max_degree = max(G.out_degree(v) for v in G)
+        #max_degree = max(G.out_degree(v) for v in G)
+        if D is None:
+            D = {v: G.out_degree(v) for v in G}
         edges = list()
         for i, j in G.edges():
             edges.append([node_map[i], node_map[j]])
         vertices_selected, edges_selected = pcst_fast.pcst_fast(np.asarray(edges, dtype=np.int64),
-                                       np.asarray([G.out_degree(v) for v in G], np.float64),
+                                       np.asarray([D[v] for v in G], np.float64),
                                        np.asarray([a for _ in range(len(edges))], np.float64),
                                        node_map[r], 1, 'strong', 0)
         T = nx.Graph()
@@ -138,12 +235,8 @@ class PCSTFast:
         return T
 
 
-def convert_to_dag(G, r):
-    return nx.traversal.bfs_tree(G, r)
-
-
-def core(G, r, trace_method, eps=1.E-12):
-    tr_cond = -1
+def core(G, r, trace_method, eps=1.E-6):
+    tr_cond = -1 # TODO: Change to -1 when debugging finishes
     tr = None
     found_a = -1
     while True:
@@ -151,11 +244,10 @@ def core(G, r, trace_method, eps=1.E-12):
         next_tr = trace_method(G, r, a)
         tr_cond = conductance(G, next_tr)
         # print(a, tr_cond)
-        if len(next_tr) <= 1:
+        if len(next_tr) <= 1 or a == found_a:
             break
         tr = next_tr
         found_a = a
     if getattr(trace_method, 'reached_max_repeats', False):
         print('Warning: trace method reached max repetitions in its last run. Results are compromised')
-
     return tr, found_a
